@@ -8,6 +8,7 @@ import { cancelQuest, startQuest } from "../quests/manager";
 export function FloatingHud({ onClose }: { onClose: () => void }) {
     const [quests, setQuests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [previewOpen, setPreviewOpen] = useState(false);
     const [runningQuest, setRunningQuest] = useState<{
         id: string;
         name: string;
@@ -32,7 +33,7 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
         return () => clearInterval(listInterval);
     }, []);
 
-    // 300ms polling for live real-time % from activeQuests state
+    // 250ms polling for live real-time % from activeQuests state
     useEffect(() => {
         const poll = () => {
             let active: any = null;
@@ -62,7 +63,7 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
             }
         };
 
-        const interval = setInterval(poll, 300);
+        const interval = setInterval(poll, 250);
         return () => clearInterval(interval);
     }, []);
 
@@ -106,8 +107,12 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
     };
 
     return (
-        <div className={`quest-pill ${isAllDone ? "completed success" : ""}`} style={{ pointerEvents: "auto" }}>
-            <div className="quest-pill-compact" style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", cursor: "pointer" }}>
+        <div className={`q-bottom-hud ${previewOpen ? "is-expanded" : ""} ${isAllDone ? "is-done" : ""}`}>
+            {/* Sleek Compact Pill Row */}
+            <div
+                className="q-hud-header"
+                onClick={() => setPreviewOpen(!previewOpen)}
+            >
                 {/* Thin SVG Circle Indicator */}
                 <div style={{ position: "relative", width: circleSize, height: circleSize, flexShrink: 0 }}>
                     <svg width={circleSize} height={circleSize} style={{ transform: "rotate(-90deg)", display: "block" }}>
@@ -116,7 +121,7 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
                             cy={center}
                             r={radius}
                             fill="none"
-                            stroke="rgba(255, 255, 255, 0.2)"
+                            stroke="rgba(255, 255, 255, 0.18)"
                             strokeWidth={strokeWidth}
                         />
                         <circle
@@ -129,13 +134,13 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
                             strokeDasharray={circumference}
                             strokeDashoffset={dashoffset}
                             strokeLinecap="round"
-                            style={{ transition: "stroke-dashoffset 0.3s ease" }}
+                            style={{ transition: "stroke-dashoffset 0.4s cubic-bezier(0.16, 1, 0.3, 1)" }}
                         />
                     </svg>
                 </div>
 
                 {/* Quest Title */}
-                <span className="quest-pill-title" style={{ textAlign: "left", flex: 1, fontSize: "13px", fontWeight: 600 }}>
+                <span className="q-hud-title">
                     {loading ? (
                         "Scanning quests..."
                     ) : runningQuest ? (
@@ -148,70 +153,70 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
                 </span>
 
                 {/* Live Percentage */}
-                <span className="quest-pill-percent" style={{ fontSize: "13px", fontWeight: 700, color: "#43b581", minWidth: "32px", textAlign: "right" }}>
+                <span className="q-hud-percent">
                     {loading ? "..." : isAllDone ? "Done" : runningQuest ? `${Math.round(runningQuest.percent)}%` : `${mins}m`}
                 </span>
 
+                {/* Eye Button to toggle preview */}
+                <button
+                    className={`q-hud-btn ${previewOpen ? "active" : ""}`}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewOpen(!previewOpen);
+                    }}
+                    title={previewOpen ? "Hide quest preview" : "Show quest preview"}
+                    aria-label="Toggle quest preview"
+                >
+                    {previewOpen ? <Icons.EyeSlash /> : <Icons.Eye />}
+                </button>
+
                 {/* Close Button */}
                 <button
+                    className="q-hud-btn close-btn"
                     onClick={(e) => {
                         e.stopPropagation();
                         onClose();
                     }}
-                    style={{
-                        background: "none",
-                        border: "none",
-                        color: "rgba(255,255,255,0.4)",
-                        cursor: "pointer",
-                        padding: "2px",
-                        display: "flex",
-                        alignItems: "center",
-                        marginLeft: "4px"
-                    }}
                     title="Dismiss"
+                    aria-label="Dismiss HUD"
                 >
                     <Icons.Close />
                 </button>
             </div>
 
-            {/* Smooth Hover-Expanded Content */}
-            <div className="quest-pill-expanded">
-                <div className="quest-pill-expanded-inner">
-                    <div className="quest-pill-body" style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)", marginTop: "6px" }}>
+            {/* Butter-Smooth Collapsible Preview Card */}
+            <div className="q-hud-body-wrapper">
+                <div className="q-hud-body-content">
+                    <div className="q-hud-desc">
                         {runningQuest ? (
                             runningQuest.taskType.includes("VIDEO") ? (
-                                `Fast-forwarding video. Wait ~10 seconds.`
+                                "Fast-forwarding video. Wait ~10s."
                             ) : (
-                                `Auto-completing: ${runningQuest.name}. Wait ~${runningQuest.remainingMins} minutes.`
+                                `Auto-completing: ${runningQuest.name}. Wait ~${runningQuest.remainingMins}m.`
                             )
                         ) : isAllDone ? (
-                            "All rewards claimed. You're fully locked in!"
+                            "All quest rewards claimed! You're fully locked in."
                         ) : (
-                            `${quests.length} active quests in queue. Total time ~${mins} minutes.`
+                            `${quests.length} active quests in queue. Est. total time: ~${mins}m.`
                         )}
                     </div>
 
-                    {/* Thin Progress Bar */}
-                    <div className="quest-pill-progress-bar" style={{ height: "3px", borderRadius: "999px", background: "rgba(255,255,255,0.1)", overflow: "hidden", margin: "4px 0" }}>
+                    {/* Progress Bar */}
+                    <div className="q-hud-bar-bg">
                         <div
-                            className="quest-pill-progress-fill"
-                            style={{
-                                width: `${percent}%`,
-                                height: "100%",
-                                background: isAllDone ? "#43b581" : "linear-gradient(90deg, #5865f2, #7289da)",
-                                transition: "width 0.3s ease"
-                            }}
+                            className={`q-hud-bar-fill ${isAllDone ? "success" : ""}`}
+                            style={{ width: `${percent}%` }}
                         />
                     </div>
 
                     {/* Actions */}
-                    <div className="quest-pill-actions" style={{ display: "flex", justifyContent: "center", marginTop: "4px" }}>
+                    <div className="q-hud-actions">
                         {runningQuest ? (
-                            <button className="quest-btn danger" onClick={handleCancel} style={{ padding: "4px 16px", borderRadius: "6px", fontSize: "12px", fontWeight: 600 }}>
+                            <button className="q-hud-action-btn cancel" onClick={handleCancel}>
                                 Cancel
                             </button>
                         ) : !isAllDone ? (
-                            <button className="quest-btn" onClick={handleStartAll} style={{ padding: "4px 16px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: "#5865f2", border: "none" }}>
+                            <button className="q-hud-action-btn primary" onClick={handleStartAll}>
                                 Auto-Complete All
                             </button>
                         ) : null}

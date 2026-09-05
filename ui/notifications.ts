@@ -31,121 +31,22 @@ function closePillElement(el: HTMLElement, delay = 900) {
 }
 
 export function createQuestPill(questId: string, title: string): void {
-    if (!settings.store.showProgressBar) return;
-    removeQuestPill(questId);
-
-    const container = getPillContainer();
-    const row = document.createElement("div");
-    row.className = "quest-pill-row";
-    row.id = `quest-row-${questId}`;
-
-    const pill = document.createElement("div");
-    pill.className = "quest-pill";
-    pill.id = `quest-pill-${questId}`;
-
-    pill.innerHTML = `
-        <div class="quest-pill-compact">
-            <div class="quest-pill-spinner"></div>
-            <span class="quest-pill-title">${escapeHtml(title)}</span>
-            <span class="quest-pill-percent">0%</span>
-        </div>
-        <div class="quest-pill-expanded">
-            <div class="quest-pill-expanded-inner">
-                <div class="quest-pill-body">Initializing...</div>
-                <div class="quest-pill-progress-bar">
-                    <div class="quest-pill-progress-fill"></div>
-                </div>
-                <div class="quest-pill-actions">
-                    <button class="quest-btn danger quest-cancel-btn">Cancel</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    row.appendChild(pill);
-    container.insertBefore(row, container.firstChild);
-    questPills.set(questId, row);
-
-    const cancelBtn = pill.querySelector(".quest-cancel-btn");
-    if (cancelBtn) {
-        cancelBtn.addEventListener("click", () => {
-            const { cancelQuest } = require("../quests/manager");
-            const { UserStore } = require("@webpack/common");
-            const userId = UserStore.getCurrentUser()?.id;
-            if (userId) cancelQuest(questId, userId);
-        });
-    }
+    // Top HUD removed per user request - progress is handled by bottom floating HUD
+    const container = document.getElementById("vc-pill-container");
+    if (container) container.remove();
 }
 
 export function updateQuestPill(questId: string, body?: string, percent?: number): void {
-    const row = questPills.get(questId) || document.getElementById(`quest-row-${questId}`) as HTMLElement;
-    if (!row) return;
-    const pill = row.querySelector(".quest-pill");
-    if (!pill || pill.classList.contains("completed")) return;
-
-    if (body !== undefined) {
-        const bodyEl = pill.querySelector(".quest-pill-body");
-        if (bodyEl) bodyEl.textContent = body;
-    }
-
-    if (percent !== undefined) {
-        const floored = Math.floor(percent);
-        const safePercent = percent >= 100 ? 100 : Math.min(99, Math.max(0, floored));
-        const percentEl = pill.querySelector(".quest-pill-percent");
-        if (percentEl) percentEl.textContent = `${safePercent}%`;
-
-        const progressFill = pill.querySelector(".quest-pill-progress-fill") as HTMLElement;
-        if (progressFill) progressFill.style.width = `${safePercent}%`;
-    }
+    // Top HUD removed
 }
 
 export function completeQuestPill(questId: string, message: string, success: boolean): void {
-    const row = questPills.get(questId) || document.getElementById(`quest-row-${questId}`) as HTMLElement;
-    if (!row) return;
-    const pill = row.querySelector(".quest-pill");
-    if (!pill) return;
-
-    pill.classList.add("completed");
-    pill.classList.add(success ? "success" : "error");
-
-    const titleEl = pill.querySelector(".quest-pill-title");
-    if (titleEl) titleEl.textContent = message;
-
-    const percentEl = pill.querySelector(".quest-pill-percent");
-    if (percentEl) percentEl.textContent = success ? "Done" : "Error";
-
-    const progressFill = pill.querySelector(".quest-pill-progress-fill") as HTMLElement;
-    if (progressFill) progressFill.style.width = "100%";
-
-    const slides = row.querySelectorAll(".quest-pill-slide");
-    slides.forEach(s => s.remove());
-
-    const baseDuration = (settings.store.notificationDuration ?? 4) * 1000;
-    const delay = baseDuration;
-    setTimeout(() => {
-        const currentRow = questPills.get(questId) || document.getElementById(`quest-row-${questId}`) as HTMLElement;
-        if (!currentRow) return;
-        const currentPill = currentRow.querySelector(".quest-pill");
-        if (currentPill) {
-            closePillElement(currentPill as HTMLElement);
-            setTimeout(() => {
-                try { currentRow.remove(); } catch (e) {}
-                questPills.delete(questId);
-            }, 900);
-        }
-    }, delay);
+    // Top HUD removed
 }
 
 export function removeQuestPill(questId: string): void {
-    const mapRow = questPills.get(questId);
-    if (mapRow) {
-        try { mapRow.remove(); } catch (e) {}
-        questPills.delete(questId);
-    }
-    const domRow = document.getElementById(`quest-row-${questId}`);
-    if (domRow) {
-        try { domRow.remove(); } catch (e) {}
-    }
+    const container = document.getElementById("vc-pill-container");
+    if (container) container.remove();
 }
 
 function showPillSlideMessage(questId: string, message: string, type: "success" | "info" | "error" | "cancel"): void {
