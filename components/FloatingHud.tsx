@@ -1,15 +1,21 @@
-import { React, useState, useEffect } from "@webpack/common";
+import { React, useState, useEffect, UserStore } from "@webpack/common";
 import { Icons } from "./Icons";
 import { discordApiGet } from "../core/api";
 import { activeQuests } from "../core/state";
 import { QuestsStore } from "../core/stores";
+import { cancelQuest, startQuest } from "../quests/manager";
 
 export function FloatingHud({ onClose }: { onClose: () => void }) {
     const [quests, setQuests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [runningQuest, setRunningQuest] = useState<{ id: string; name: string; percent: number; taskType: string } | null>(null);
+    const [runningQuest, setRunningQuest] = useState<{
+        id: string;
+        name: string;
+        percent: number;
+        taskType: string;
+        remainingMins: number;
+    } | null>(null);
 
-    // Initial quest count fetch & periodic sync
     const fetchQuestList = () => {
         discordApiGet("/quests/@me")
             .then((data: any) => {
@@ -22,13 +28,13 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
 
     useEffect(() => {
         fetchQuestList();
-        const listInterval = setInterval(fetchQuestList, 10000);
+        const listInterval = setInterval(fetchQuestList, 8000);
         return () => clearInterval(listInterval);
     }, []);
 
-    // High frequency ticker to poll activeQuests state for real-time %
+    // 300ms polling for live real-time % from activeQuests state
     useEffect(() => {
-        const pollActive = () => {
+        const poll = () => {
             let active: any = null;
             for (const [_, data] of activeQuests.entries()) {
                 if (data.isProcessing) {
@@ -39,19 +45,24 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
 
             if (active) {
                 const q = QuestsStore?.getQuest?.(active.questId);
-                const name = q?.config?.messages?.questName ?? q?.messages?.questName ?? "Active Quest";
+                const name = q?.config?.messages?.questName ?? q?.messages?.questName ?? "Quest";
+                const target = active.targetProgress || 900;
+                const current = (active.lastProgress || 0) * (target / 100);
+                const remMins = Math.max(1, Math.ceil((target - current) / 60));
+
                 setRunningQuest({
                     id: active.questId,
                     name,
                     percent: Math.min(100, Math.max(0, active.lastProgress || 0)),
                     taskType: active.taskType || "",
+                    remainingMins: remMins,
                 });
             } else {
                 setRunningQuest(null);
             }
         };
 
-        const interval = setInterval(pollActive, 300);
+        const interval = setInterval(poll, 300);
         return () => clearInterval(interval);
     }, []);
 
@@ -64,105 +75,149 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
     const mins = Math.ceil(totalSeconds / 60);
     const isAllDone = quests.length === 0 && !loading;
 
-    // Circular Progress Calculation - Bigger & bolder
-    const size = 48;
-    const strokeWidth = 4.2;
-    const center = size / 2;
+    // SVG Circular Progress Ring (Exact clone of Discord quest ring)
+    const circleSize = 20;
+    const strokeWidth = 2.4;
+    const center = circleSize / 2;
     const radius = center - strokeWidth;
     const circumference = 2 * Math.PI * radius;
     const percent = runningQuest ? runningQuest.percent : (isAllDone ? 100 : 0);
     const dashoffset = circumference - (percent / 100) * circumference;
 
+    const handleCancel = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (runningQuest) {
+            const userId = UserStore?.getCurrentUser()?.id;
+            if (userId) cancelQuest(runningQuest.id, userId);
+        }
+    };
+
+    const handleStartAll = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            const data = await discordApiGet("/quests/@me");
+            const qList = (data?.quests || []).filter((q: any) => !q.user_status?.completed_at);
+            for (const q of qList) {
+                await startQuest(q.id);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     return (
-        <div className="q-hud-pill">
-            <div className="q-circle-container" style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-                <svg width={size} height={size} style={{ transform: "rotate(-90deg)", display: "block" }}>
-                    {/* Background track */}
-                    <circle
-                        cx={center}
-                        cy={center}
-                        r={radius}
-                        fill="none"
-                        stroke="rgba(255, 255, 255, 0.14)"
-                        strokeWidth={strokeWidth}
-                    />
-                    {/* Animated foreground ring */}
-                    <circle
-                        cx={center}
-                        cy={center}
-                        r={radius}
-                        fill="none"
-                        stroke={isAllDone ? "#10b981" : "url(#q-pill-grad)"}
-                        strokeWidth={strokeWidth}
-                        strokeDasharray={circumference}
-                        strokeDashoffset={dashoffset}
-                        strokeLinecap="round"
-                        style={{ transition: "stroke-dashoffset 0.35s ease" }}
-                    />
-                    <defs>
-                        <linearGradient id="q-pill-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#5865f2" />
-                            <stop offset="100%" stopColor="#8b5cf6" />
-                        </linearGradient>
-                    </defs>
-                </svg>
-
-                {/* Inner Icon or Live Percentage */}
-                <div style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: size,
-                    height: size,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontSize: runningQuest ? "12px" : "15px",
-                    fontWeight: 800,
-                    letterSpacing: runningQuest ? "-0.5px" : "normal"
-                }}>
-                    {isAllDone ? (
-                        <Icons.Check />
-                    ) : runningQuest ? (
-                        <span>{Math.round(runningQuest.percent)}%</span>
-                    ) : (
-                        <Icons.Quest />
-                    )}
+        <div className={`quest-pill ${isAllDone ? "completed success" : ""}`} style={{ pointerEvents: "auto" }}>
+            <div className="quest-pill-compact" style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", cursor: "pointer" }}>
+                {/* Thin SVG Circle Indicator */}
+                <div style={{ position: "relative", width: circleSize, height: circleSize, flexShrink: 0 }}>
+                    <svg width={circleSize} height={circleSize} style={{ transform: "rotate(-90deg)", display: "block" }}>
+                        <circle
+                            cx={center}
+                            cy={center}
+                            r={radius}
+                            fill="none"
+                            stroke="rgba(255, 255, 255, 0.2)"
+                            strokeWidth={strokeWidth}
+                        />
+                        <circle
+                            cx={center}
+                            cy={center}
+                            r={radius}
+                            fill="none"
+                            stroke={isAllDone ? "#43b581" : "#5865f2"}
+                            strokeWidth={strokeWidth}
+                            strokeDasharray={circumference}
+                            strokeDashoffset={dashoffset}
+                            strokeLinecap="round"
+                            style={{ transition: "stroke-dashoffset 0.3s ease" }}
+                        />
+                    </svg>
                 </div>
-            </div>
 
-            {/* Quest Details Text */}
-            <div className="q-info">
-                <span className="q-title">
+                {/* Quest Title */}
+                <span className="quest-pill-title" style={{ textAlign: "left", flex: 1, fontSize: "13px", fontWeight: 600 }}>
                     {loading ? (
-                        "Scanning..."
+                        "Scanning quests..."
                     ) : runningQuest ? (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                            <Icons.Bolt />
-                            <span>{runningQuest.name}</span>
-                        </span>
+                        runningQuest.name
                     ) : isAllDone ? (
                         "All Quests Complete"
                     ) : (
                         `${quests.length} Active Quests`
                     )}
                 </span>
-                <span className="q-subtitle">
-                    {runningQuest ? (
-                        <span>{runningQuest.taskType.includes("VIDEO") ? "Fast-forwarding video..." : "Emulating gameplay..."}</span>
-                    ) : (
-                        <>
-                            <Icons.Clock />
-                            <span>{loading ? "Syncing..." : isAllDone ? "0m left" : `${mins} mins remaining`}</span>
-                        </>
-                    )}
+
+                {/* Live Percentage */}
+                <span className="quest-pill-percent" style={{ fontSize: "13px", fontWeight: 700, color: "#43b581", minWidth: "32px", textAlign: "right" }}>
+                    {loading ? "..." : isAllDone ? "Done" : runningQuest ? `${Math.round(runningQuest.percent)}%` : `${mins}m`}
                 </span>
+
+                {/* Close Button */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onClose();
+                    }}
+                    style={{
+                        background: "none",
+                        border: "none",
+                        color: "rgba(255,255,255,0.4)",
+                        cursor: "pointer",
+                        padding: "2px",
+                        display: "flex",
+                        alignItems: "center",
+                        marginLeft: "4px"
+                    }}
+                    title="Dismiss"
+                >
+                    <Icons.Close />
+                </button>
             </div>
 
-            <button className="q-close-btn" onClick={onClose} title="Close HUD">
-                <Icons.Close />
-            </button>
+            {/* Smooth Hover-Expanded Content */}
+            <div className="quest-pill-expanded">
+                <div className="quest-pill-expanded-inner">
+                    <div className="quest-pill-body" style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)", marginTop: "6px" }}>
+                        {runningQuest ? (
+                            runningQuest.taskType.includes("VIDEO") ? (
+                                `Fast-forwarding video. Wait ~10 seconds.`
+                            ) : (
+                                `Auto-completing: ${runningQuest.name}. Wait ~${runningQuest.remainingMins} minutes.`
+                            )
+                        ) : isAllDone ? (
+                            "All rewards claimed. You're fully locked in!"
+                        ) : (
+                            `${quests.length} active quests in queue. Total time ~${mins} minutes.`
+                        )}
+                    </div>
+
+                    {/* Thin Progress Bar */}
+                    <div className="quest-pill-progress-bar" style={{ height: "3px", borderRadius: "999px", background: "rgba(255,255,255,0.1)", overflow: "hidden", margin: "4px 0" }}>
+                        <div
+                            className="quest-pill-progress-fill"
+                            style={{
+                                width: `${percent}%`,
+                                height: "100%",
+                                background: isAllDone ? "#43b581" : "linear-gradient(90deg, #5865f2, #7289da)",
+                                transition: "width 0.3s ease"
+                            }}
+                        />
+                    </div>
+
+                    {/* Actions */}
+                    <div className="quest-pill-actions" style={{ display: "flex", justifyContent: "center", marginTop: "4px" }}>
+                        {runningQuest ? (
+                            <button className="quest-btn danger" onClick={handleCancel} style={{ padding: "4px 16px", borderRadius: "6px", fontSize: "12px", fontWeight: 600 }}>
+                                Cancel
+                            </button>
+                        ) : !isAllDone ? (
+                            <button className="quest-btn" onClick={handleStartAll} style={{ padding: "4px 16px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: "#5865f2", border: "none" }}>
+                                Auto-Complete All
+                            </button>
+                        ) : null}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
