@@ -95,76 +95,56 @@ function injectQuestButtons() {
                 if (currentState === isRunning) return;
                 existingBtn.remove();
             }
-            const existingButtons = tile.querySelectorAll('button[type="button"]');
-            if (existingButtons.length === 0) return;
-            const lastDiscordButton = existingButtons[existingButtons.length - 1] as HTMLButtonElement;
-            const buttonParent = lastDiscordButton.parentElement;
-            if (!buttonParent) return;
-            buttonParent.style.display = "flex";
-            buttonParent.style.flexWrap = "nowrap";
-            buttonParent.style.gap = "8px";
-            buttonParent.style.alignItems = "stretch";
-            const allButtons = buttonParent.querySelectorAll("button");
-            allButtons.forEach((btn: Element) => {
-                const htmlBtn = btn as HTMLElement;
-                if (!htmlBtn.hasAttribute("data-quest-autocomplete-btn")) {
-                    htmlBtn.style.flex = "1 1 0";
-                    htmlBtn.style.minWidth = "0";
-                    htmlBtn.style.maxWidth = "none";
-                    htmlBtn.style.overflow = "hidden";
-                    const spans = htmlBtn.querySelectorAll("span, div");
-                    spans.forEach((span: Element) => {
-                        const htmlSpan = span as HTMLElement;
-                        htmlSpan.style.overflow = "hidden";
-                        htmlSpan.style.textOverflow = "ellipsis";
-                        htmlSpan.style.whiteSpace = "nowrap";
-                    });
-                }
-            });
-            const discordBtnComputedStyle = window.getComputedStyle(lastDiscordButton);
+            (tile as HTMLElement).style.position = "relative";
             const button = document.createElement("button");
             button.type = "button";
             button.setAttribute("data-quest-autocomplete-btn", "true");
             button.setAttribute("data-quest-id", questId);
             button.setAttribute("data-running", isRunning.toString());
             button.style.cssText = `
-                position: relative;
-                display: flex;
-                justify-content: center;
+                position: absolute;
+                top: 12px;
+                left: 12px;
+                z-index: 25;
+                display: inline-flex;
                 align-items: center;
-                box-sizing: border-box;
-                border: none;
-                border-radius: 3px;
-                font-size: 14px;
-                font-weight: 500;
-                line-height: 16px;
-                padding: 2px 8px;
-                user-select: none;
-                min-width: 0;
-                min-height: ${discordBtnComputedStyle.minHeight || "38px"};
-                height: ${discordBtnComputedStyle.height || "38px"};
-                flex: 1 1 0;
+                gap: 6px;
+                background: ${isRunning ? "linear-gradient(135deg, #ef4444, #b91c1c)" : "linear-gradient(135deg, #5865f2, #7c3aed)"};
+                color: #ffffff;
+                padding: 6px 13px;
+                border-radius: 999px;
+                font-size: 12px;
+                font-weight: 700;
+                font-family: inherit;
+                letter-spacing: -0.2px;
                 cursor: pointer;
-                overflow: hidden;
-                color: #fff;
-                background-color: ${isRunning ? "var(--button-danger-background, #da373c)" : "var(--brand-500, #5865f2)"};
+                border: 1px solid rgba(255, 255, 255, 0.22);
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 10px ${isRunning ? "rgba(239, 68, 68, 0.4)" : "rgba(88, 101, 242, 0.4)"};
+                backdrop-filter: blur(10px);
+                transition: transform 0.15s ease, box-shadow 0.15s ease;
+                user-select: none;
             `;
-            const textSpan = document.createElement("span");
-            textSpan.style.cssText = `
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-                max-width: 100%;
-            `;
-            textSpan.textContent = isRunning ? "Cancel" : "Auto Complete";
-            button.appendChild(textSpan);
+            button.onmouseenter = () => {
+                button.style.transform = "scale(1.05)";
+            };
+            button.onmouseleave = () => {
+                button.style.transform = "scale(1)";
+            };
+
+            const iconSvg = isRunning
+                ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`
+                : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+
+            button.innerHTML = `${iconSvg}<span>${isRunning ? "Cancel" : "Auto Complete"}</span>`;
+
             button.addEventListener("click", e => {
                 e.preventDefault();
                 e.stopPropagation();
                 startQuest(questId);
                 setTimeout(() => refreshQuestButtonsRef?.(), 150);
             });
-            lastDiscordButton.insertAdjacentElement("afterend", button);
+
+            tile.appendChild(button);
         });
     } catch (error) {
     } finally {

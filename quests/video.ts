@@ -24,14 +24,14 @@ export async function completeVideoQuest(quest: Quest, userId: string): Promise<
         return true;
     }
     let secondsDone = quest.userStatus?.progress?.[taskName]?.value ?? 0;
-    const maxFuture = 10;
-    const speed = 7;
-    const interval = 1;
+    const maxFuture = 15;
+    const speed = 10;
+    const interval = 0.5;
     const enrolledAt = new Date(quest.userStatus.enrolledAt).getTime();
     let completed = false;
     const key = getProgressBarKey(quest.id, userId);
     const questName = quest.config?.messages?.questName ?? quest.messages?.questName ?? "Video Quest";
-    updateQuestPill(quest.id, `Spoofing video for ${questName}`, 0);
+    updateQuestPill(quest.id, `Fast-forwarding video for ${questName}`, 0);
     if (settings.store.showProgressBar) {
         createProgressBar(quest.id, userId);
         setTimeout(() => {
@@ -73,20 +73,20 @@ export async function completeVideoQuest(quest: Quest, userId: string): Promise<
                 return false;
             }
             const maxAllowed = Math.floor((Date.now() - enrolledAt) / 1000) + maxFuture;
-            const diff = maxAllowed - secondsDone;
-            const timestamp = secondsDone + speed;
-            if (diff >= speed) {
+            const nextStep = Math.min(secondsNeeded, Math.max(secondsDone + speed, maxAllowed));
+            if (nextStep > secondsDone) {
                 try {
-                    completed = await postProgress(Math.min(secondsNeeded, timestamp + Math.random()));
-                    secondsDone = Math.min(secondsNeeded, timestamp);
+                    completed = await postProgress(nextStep);
+                    secondsDone = nextStep;
                     const percent = Math.min(100, (secondsDone / secondsNeeded) * 100);
                     updateProgressBar(quest.id, userId, percent);
-                    debugLog(`[QuestAutoComplete] Video progress: ${secondsDone}/${secondsNeeded}`);
+                    debugLog(`[QuestCompleter] Video fast progress: ${secondsDone}/${secondsNeeded}`);
+                    if (completed || secondsDone >= secondsNeeded) break;
                 } catch (e) {
-                    console.warn("[QuestAutoComplete] Video progress error:", e);
+                    console.warn("[QuestCompleter] Video progress error:", e);
                 }
             }
-            if (timestamp >= secondsNeeded) break;
+            if (secondsDone >= secondsNeeded) break;
             await new Promise(resolve => setTimeout(resolve, interval * 1000));
         }
         if (!completed) {

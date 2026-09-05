@@ -64,9 +64,9 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
     const mins = Math.ceil(totalSeconds / 60);
     const isAllDone = quests.length === 0 && !loading;
 
-    // Circular Progress Calculation
-    const size = 36;
-    const strokeWidth = 3.5;
+    // Circular Progress Calculation - Bigger & bolder
+    const size = 48;
+    const strokeWidth = 4.2;
     const center = size / 2;
     const radius = center - strokeWidth;
     const circumference = 2 * Math.PI * radius;
@@ -83,7 +83,7 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
                         cy={center}
                         r={radius}
                         fill="none"
-                        stroke="rgba(255, 255, 255, 0.15)"
+                        stroke="rgba(255, 255, 255, 0.14)"
                         strokeWidth={strokeWidth}
                     />
                     {/* Animated foreground ring */}
@@ -97,7 +97,7 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
                         strokeDasharray={circumference}
                         strokeDashoffset={dashoffset}
                         strokeLinecap="round"
-                        style={{ transition: "stroke-dashoffset 0.3s ease" }}
+                        style={{ transition: "stroke-dashoffset 0.35s ease" }}
                     />
                     <defs>
                         <linearGradient id="q-pill-grad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -118,7 +118,7 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
                     alignItems: "center",
                     justifyContent: "center",
                     color: "#fff",
-                    fontSize: runningQuest ? "10px" : "13px",
+                    fontSize: runningQuest ? "12px" : "15px",
                     fontWeight: 800,
                     letterSpacing: runningQuest ? "-0.5px" : "normal"
                 }}>
@@ -138,7 +138,10 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
                     {loading ? (
                         "Scanning..."
                     ) : runningQuest ? (
-                        `⚡ ${runningQuest.name}`
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                            <Icons.Bolt />
+                            <span>{runningQuest.name}</span>
+                        </span>
                     ) : isAllDone ? (
                         "All Quests Complete"
                     ) : (
@@ -147,7 +150,7 @@ export function FloatingHud({ onClose }: { onClose: () => void }) {
                 </span>
                 <span className="q-subtitle">
                     {runningQuest ? (
-                        <span>{runningQuest.taskType.includes("VIDEO") ? "Spoofing video..." : "Emulating gameplay..."}</span>
+                        <span>{runningQuest.taskType.includes("VIDEO") ? "Fast-forwarding video..." : "Emulating gameplay..."}</span>
                     ) : (
                         <>
                             <Icons.Clock />
